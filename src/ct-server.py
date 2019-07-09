@@ -1,13 +1,10 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 
+from __future__ import absolute_import
 import sys
 import socket
-import getopt
- 
+import argparse
 
-proto = 'TCP'
-PORT = 8080
-HOST = 'localhost'                       # Symbolic name meaning all available interfaces
 
 def server_udp(HOST, PORT):
 
@@ -63,36 +60,41 @@ def server_tcp(HOST, PORT):
     #Start listening on socket
     s.listen(10)
     print 'Socket now listening'
+    print '================================================='
      
     #now keep talking with the client
-    while 1:
+    while True:
         #wait to accept a connection - blocking call
         conn, addr = s.accept()
         print 'Connected with ' + addr[0] + ':' + str(addr[1])
-         
+
     s.close()
 
-try:
-    opts, args = getopt.getopt(sys.argv[1:],"hup:",["port=", "host="])
-except getopt.GetoptError:
-    print 'sys.argv[0] '
-    sys.exit(2)
-for opt, arg in opts:
-    if opt == '-h':
-        print sys.argv[0] + ' -p <port> -u'
-        sys.exit()
-    elif opt in ("-u", "--udp"):
-        proto = "UDP"
-    elif opt in ("-p", "--port"):
-        PORT = int(arg)
-    elif opt in ("--host"):
-        HOST = arg      
+def print_options(proto, port, host):
 
-print 'Proto: ', proto
-print ' Port: ', PORT
-print ' Host: ', HOST
+    print 'Proto: ', proto
+    print ' Port: ', port
+    print ' Host: ', host
 
-if proto == "UDP":
-    server_udp(HOST, PORT)
-else:
-    server_tcp(HOST, PORT)
+def main():
+
+    parser = argparse.ArgumentParser(description='')
+
+    parser.add_argument('-s', '--server', dest='server', action='store_true', default=False, help='Run in Server mode, default is client mode')
+    parser.add_argument('-u', '--udp', dest='udp',  action='store_true', default=False, help='Protocol defaults to tcp')
+    parser.add_argument('-p', '--port', dest='port',  action='store', type=int, default=80,  help='Default 80')
+    parser.add_argument('-b', '--bind', dest='bind',  action='store', type=str, default='localhost',  help='Used in server mode, defaults to localhost')
+    #parser.add_argument('host', action='store', help='Host to connect to used in client mode')
+
+    args = parser.parse_args()
+
+    if args.udp:
+        print_options('udp', args.port, args.bind)
+        server_udp(args.bind, args.port)
+    else:
+        print_options('tcp', args.port, args.bind)
+        server_tcp(args.bind, args.port)
+
+
+if __name__ == '__main__':
+    main()

@@ -1,15 +1,12 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 
+from __future__ import absolute_import
 import sys
 import socket
-import getopt
-from optparse import OptionParser
+import argparse
 
 
-#
-# Class to support tcp and udp server
-
-def server_udp(bind, port):
+def server_udp(HOST, PORT):
 
     # Datagram (udp) socket
     try :
@@ -22,7 +19,7 @@ def server_udp(bind, port):
      
     # Bind socket to local host and port
     try:
-        srv.bind((bind, port))
+        s.bind((HOST, PORT))
     except socket.error, msg:
         print 'Bind failed. Error Code : ' + str(msg[0]) + ' Message ' + msg[1]
         sys.exit()
@@ -32,7 +29,7 @@ def server_udp(bind, port):
     #now keep talking with the client
     while 1:
         # receive data from client (data, addr)
-        d = srv.recvfrom(1024)
+        d = s.recvfrom(1024)
         data = d[0]
         addr = d[1]
          
@@ -41,184 +38,139 @@ def server_udp(bind, port):
          
     reply = 'OK...' + data
      
-    srv.sendto(reply , addr)
+    s.sendto(reply , addr)
     print 'Message[' + addr[0] + ':' + str(addr[1]) + '] - ' + data.strip()
      
-    srv.close()
+    s.close()
 
-def server_tcp(bind, port):
+def server_tcp(HOST, PORT):
+    
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    print 'Socket created'
+     
+    #Bind socket to local host and port
+    try:
+        s.bind((HOST, PORT))
+    except socket.error as msg:
+        print 'Bind failed. Error Code : ' + str(msg[0]) + ' Message ' + msg[1]
+        sys.exit()
+         
+    print 'Socket bind complete'
+     
+    #Start listening on socket
+    s.listen(10)
+    print 'Socket now listening'
+     
+    #now keep talking with the client
+    while 1:
+        #wait to accept a connection - blocking call
+        conn, addr = s.accept()
+        print 'Connected with ' + addr[0] + ':' + str(addr[1])
+         
+    s.close()
 
+def udp(HOST, PORT):
+    '''
+        udp socket client
+        Silver Moon
+    '''
+    print "HOST: " + HOST
+    # create dgram udp socket
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    except socket.error:
+        print 'Failed to create socket'
+        sys.exit()
+ 
+    while(1) :
+        #msg = raw_input('Enter message to send : ')
+        msg = "helo"
+        print "Sending " + str(msg) + " to " + str(HOST) + ":" + str(PORT)
+        try :
+            #Set the whole string
+            s.sendto(str(msg), (str(HOST), int(PORT)))
+             
+            # receive data from client (data, addr)
+            d = s.recvfrom(1024)
+            reply = d[0]
+            addr = d[1]
+             
+            print 'Server reply : ' + reply
+         
+        except socket.error, msg:
+            print 'Error Code : ' + str(msg[0]) + ' Message ' + msg[1]
+            sys.exit()
+            
+def tcp(HOST, PORT):
+    
     # Create a TCP/IP socket
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     
-    # Bind the socket to the port
-    server_address = (bind, port)
-    print >>sys.stderr, 'starting up on %s port %s' % server_address
-    sock.bind(server_address)
+    # Connect the socket to the port where the server is listening
+    server_address = (HOST, PORT)
+    print >>sys.stderr, 'connecting to %s port %s' % server_address
+    sock.connect(server_address)
     
-    # Listen for incoming connections
-    sock.listen(1)
+    try:
+        
+        # Send data
+        message = 'This is the message.  It will be repeated.'
+        print >>sys.stderr, 'sending "%s"' % message
+        sock.sendall(message)
     
-    while True:
-        # Wait for a connection
-        print >>sys.stderr, 'waiting for a connection'
-        connection, client_address = sock.accept()
+        # Look for the response
+        amount_received = 0
+        amount_expected = len(message)
+        
+        while amount_received < amount_expected:
+            data = sock.recv(16)
+            amount_received += len(data)
+            print >>sys.stderr, 'received "%s"' % data
     
-        try:
-            print >>sys.stderr, 'connection from', client_address
-    
-            # Receive the data in small chunks and retransmit it
-            while True:
-                data = connection.recv(16)
-                print >>sys.stderr, 'received "%s"' % data
-                if data:
-                    print >>sys.stderr, 'sending data back to the client'
-                    connection.sendall(data)
-                else:
-                    print >>sys.stderr, 'no more data from', client_address
-                    break
-                
-        finally:
-            # Clean up the connection
-            connection.close()
+    finally:
+        print >>sys.stderr, 'closing socket'
+        sock.close()
 
-class client:
+def print_options(proto, port, host):
 
-    def __init__(self, host, port):
-        
-        self.host = host
-        self.port = int(port)
+    print 'Proto: ', proto
+    print ' Port: ', port
+    print ' Host: ', host
 
-    def udp():
-        '''
-            udp socket client
-            Silver Moon
-        '''
-        print "HOST: " + host
-        # create dgram udp socket
-        try:
-            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        except socket.error:
-            print 'Failed to create socket'
-            sys.exit()
-     
-        while(1) :
-            #msg = raw_input('Enter message to send : ')
-            msg = "helo"
-            print "Sending " + str(msg) + " to " + str(host) + ":" + str(port)
-            try :
-                #Set the whole string
-                srv.sendto(str(msg), (str(host), int(port)))
-                 
-                # receive data from client (data, addr)
-                d = srv.recvfrom(1024)
-                reply = d[0]
-                addr = d[1]
-                 
-                print 'Server reply : ' + reply
-             
-            except socket.error, msg:
-                print 'Error Code : ' + str(msg[0]) + ' Message ' + msg[1]
-                sys.exit()
-                
-    def tcp(self):
-        
-        # Create a TCP/IP socket
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        
-        print type(self.host)
-        print type(self.port)
-        
-        #port = 443
-        # Connect the socket to the port where the server is listening
-        server_address = (self.host, self.port)
-        print >>sys.stderr, 'connecting to %s port %s' % server_address
-        sock.connect(server_address)
-        
-        try:
-            
-            # Send data
-            message = 'This is the message.  It will be repeated.'
-            print >>sys.stderr, 'sending "%s"' % message
-            sock.sendall(message)
-        
-            # Look for the response
-            amount_received = 0
-            amount_expected = len(message)
-            
-            while amount_received < amount_expected:
-                data = sock.recv(16)
-                amount_received += len(data)
-                print >>sys.stderr, 'received "%s"' % data
-        
-        finally:
-            print >>sys.stderr, 'closing socket'
-            sock.close()
-        
+def main():
 
-parser = OptionParser("usage: %prog [options] ",
-    version="%prog 1.0")
+    parser = argparse.ArgumentParser(description='')
 
-parser.add_option("-s", "--server",
-    action="store_true",
-    dest="server",
-    default=False)
+    parser.add_argument("-s", "--server", dest="server", action="store_true", default=False, help="Run in Server mode, default is client mode")
+    parser.add_argument("-u", "--udp", dest="udp",  action="store_true", default=False, help="Protocol defaults to tcp")
+    parser.add_argument("-p", "--port", dest="port",  action="store", type=int, default=80,  help="Default 80")
+    parser.add_argument("-b", "--bind", dest="bind",  action="store", type=str, default="localhost",  help="Used in server mode, defaults to localhost")
+    #parser.add_argument("host", action="store", help="Host to connect to used in client mode")
+    #ma77h3wparser.add_argument('host', type=str, default="localhost", help='host')
+    #parser.add_argument('string', metavar='N', type=int, nargs='+', help='an integer for the accumulator')
 
 
-parser.add_option("-u", "--udp",
-    action="store_true",
-    dest="proto_udp",
-    default=False)
+    args = parser.parse_args()
 
-parser.add_option("-p", "--port",
-    action="store",
-    type="string",
-    dest="port",
-    default='8080',
-    help="Set the Port")
+    #print args.positionals
 
-
-#parser.add_option("-h", "--host",
-#    action="store",
-#    type="string",
-#    dest="host",
-#    help="")
-
-parser.add_option("-b", "--bind",
-    action="store",
-    type="string",
-    dest="bind",
-    default='localhost',
-    help="")
-
-
-(options, args) = parser.parse_args()
-
-arg_count = len(sys.argv)
-
-bind = options.bind
-port = int(options.port)
-
-if options.server:
-    
-    if options.proto_udp:
-        server_udp(bind, port)
+    if args.server and args.udp:
+        if args.udp:
+            print_options("udp", args.port, args.bind)
+            server_udp(args.bind, args.port)
+        else:
+            print_options("tcp", args.port, args.bind)
+            server_tcp(args.bind, args.port)
     else:
-        server_tcp(bind, port)
- 
-else:
-    
-    
-    host = sys.argv[arg_count - 1]
-    print "Host: " + host
-    
-    c = client(host, port)
-    
-    if options.proto_udp:
-        #client_udp(host, port)
-        c.udp
-    else:
-        #client_tcp(host, port)
-        c.tcp()
+        host = sys.argv[len(sys.argv) - 1]
+        if args.udp:
+            print_options("udp", args.port, host)
+            tcp(args.host, args.port)
+        else:
+            print_options("tcp", args.port, host)
+            tcp(args.host, args.port)
 
 
+
+if __name__ == "__main__":
+    main()
